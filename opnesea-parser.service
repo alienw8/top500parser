@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenSea Parser
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/opnesea-parser/app ETHEREUM 100 ONE_DAY_VOLUME None
+WorkingDirectory=/home/opnesea-parser
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=sysinit.target
