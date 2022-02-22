@@ -41,7 +41,7 @@ class Variables:
     parents: Parents
     createdAfter: str
 
-    def __init__(self, chain: Chain, count: int, cursor: str, sort_by: SortBy, parents: Parents, created_after: str):
+    def __init__(self, chain: Chain, count: int, sort_by: SortBy, parents: Parents, created_after: str, cursor: str):
         self.chain = chain
         self.count = count
         self.cursor = cursor
@@ -55,11 +55,11 @@ class RankingsPageQuery:
     query: str = "query RankingsPageQuery(\n  $chain: [ChainScalar!]\n  $count: Int!\n  $cursor: String\n  $sortBy: CollectionSort\n  $parents: [CollectionSlug!]\n  $createdAfter: DateTime\n) {\n  ...RankingsPage_data\n}\n\nfragment PaymentAssetLogo_data on PaymentAssetType {\n  symbol\n  asset {\n    imageUrl\n    id\n  }\n}\n\nfragment RankingsPage_data on Query {\n  rankings(after: $cursor, chains: $chain, first: $count, sortBy: $sortBy, parents: $parents, createdAfter: $createdAfter) {\n    edges {\n      node {\n        createdDate\n        name\n        slug\n        logo\n        isVerified\n        nativePaymentAsset {\n          ...PaymentAssetLogo_data\n          id\n        }\n        statsV2 {\n          floorPrice {\n            unit\n            eth\n          }\n          numOwners\n          totalSupply\n          sevenDayChange\n          sevenDayVolume {\n            unit\n          }\n          oneDayChange\n          oneDayVolume {\n            unit\n          }\n          thirtyDayChange\n          thirtyDayVolume {\n            unit\n          }\n          totalVolume {\n            unit\n          }\n        }\n        id\n        __typename\n      }\n      cursor\n    }\n    pageInfo {\n      endCursor\n      hasNextPage\n    }\n  }\n}\n",
     variables: Variables
 
-    def __init__(self, chain: Chain, limit: int, sort_by: SortBy, parents: Parents):
+    def __init__(self, chain: Chain, limit: int, sort_by: SortBy, parents: Parents, cursor: str = None):
         self.id = self.id
         self.query = self.query
-        self.variables = Variables(chain, limit, None, sort_by, parents, None)
+        self.variables = Variables(chain, limit, sort_by, parents, None, cursor)
 
 
-def rankings_page_query(chain: Chain, limit: int, sort_by: SortBy, parents: Parents):
-    return RankingsPageQuery(chain, limit, sort_by, parents)
+def rankings_page_query(chain: Chain, limit: int, sort_by: SortBy, parents: Parents, cursor: str = None):
+    return RankingsPageQuery(chain, limit, sort_by, parents, cursor)

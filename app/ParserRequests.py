@@ -1,9 +1,10 @@
 import httpx
-from httpx import Cookies
+from httpx import Cookies, Response
 from GraphQL import rankings_page_query, Chain, SortBy, Parents
 from Logger import log
 from Token import Token
 from ToJson import make_json
+import numpy as np
 import brotli  # NEED
 import Config
 
@@ -12,7 +13,8 @@ cfg = Config.cfg
 client = httpx.Client(
     verify=False,
     http2=True,
-    proxies=cfg.proxies)
+    proxies=cfg.proxies,
+    timeout=10000)
 
 
 def get_cookies() -> Cookies:
@@ -36,6 +38,39 @@ def get_cookies() -> Cookies:
         raise Exception(e)
     except Exception as e:
         log('Error get_cookies', str(e))
+
+
+def make_token_request(cookies: Cookies, chain: Chain = cfg.chain, limit: int = cfg.limit,
+                       sort_by: SortBy = cfg.sort_by,
+                       parents: Parents = cfg.parents, cursor: str = None) -> Response:
+    response = client.post(f"https://api.opensea.io/graphql/",
+                           cookies=cookies,
+                           headers={
+                               "accept": "*/*",
+                               "accept-encoding": "gzip, deflate, br",
+                               "accept-language": "en,ru-RU;q=0.9,ru;q=0.8,en-US;q=0.7",
+                               "content-type": "application/json; charset=utf-8",
+                               "host": "api.opensea.io",
+                               "origin": "https://opensea.io",
+                               "referer": "https://opensea.io/",
+                               "sec-ch-ua": '" " Not A;Brand";v="99", "Chromium";v="98", "Google Chrome";v="98"',
+                               "sec-ch-ua-mobile": "?0",
+                               "sec-ch-ua-platform": "Windows",
+                               "sec-fetch-dest": "empty",
+                               "sec-fetch-mode": "cors",
+                               "sec-fetch-site": "same-site",
+                               "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36",
+                               "x-api-key": "2f6f419a083c46de9d83ce3dbe7db601",
+                               "x-build-id": "cpZ03TUwNXXMXlX1EFIV2",
+                               "x-datadog-origin": "rum",
+                               "x-datadog-parent-id": "6625360975196433345",
+                               "x-datadog-sampled": "1",
+                               "x-datadog-sampling-priority": "1",
+                               "x-datadog-trace-id": "7601407751590475561",
+                               "x-signed-query": "c9e930e4edb22588d672233ed06bcd592177894fa5ad9c1821edf2a92f92dfef"
+                           }, data=make_json(rankings_page_query(chain, limit, sort_by, parents, cursor)))
+    response.encoding = 'utf-8'
+    return response
 
 
 # USE
@@ -68,37 +103,28 @@ def get_cookies() -> Cookies:
 def get_tokens(cookies: Cookies, chain: Chain = cfg.chain, limit: int = cfg.limit, sort_by: SortBy = cfg.sort_by,
                parents: Parents = cfg.parents) -> list[Token]:
     try:
-        response = client.post(f"https://api.opensea.io/graphql/",
-                               cookies=cookies,
-                               headers={
-                                   "accept": "*/*",
-                                   "accept-encoding": "gzip, deflate, br",
-                                   "accept-language": "en,ru-RU;q=0.9,ru;q=0.8,en-US;q=0.7",
-                                   "content-type": "application/json; charset=utf-8",
-                                   "host": "api.opensea.io",
-                                   "origin": "https://opensea.io",
-                                   "referer": "https://opensea.io/",
-                                   "sec-ch-ua": '" " Not A;Brand";v="99", "Chromium";v="98", "Google Chrome";v="98"',
-                                   "sec-ch-ua-mobile": "?0",
-                                   "sec-ch-ua-platform": "Windows",
-                                   "sec-fetch-dest": "empty",
-                                   "sec-fetch-mode": "cors",
-                                   "sec-fetch-site": "same-site",
-                                   "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36",
-                                   "x-api-key": "2f6f419a083c46de9d83ce3dbe7db601",
-                                   "x-build-id": "cpZ03TUwNXXMXlX1EFIV2",
-                                   "x-datadog-origin": "rum",
-                                   "x-datadog-parent-id": "6625360975196433345",
-                                   "x-datadog-sampled": "1",
-                                   "x-datadog-sampling-priority": "1",
-                                   "x-datadog-trace-id": "7601407751590475561",
-                                   "x-signed-query": "c9e930e4edb22588d672233ed06bcd592177894fa5ad9c1821edf2a92f92dfef"
-                               }, data=make_json(rankings_page_query(chain, limit, sort_by, parents)))
-        response.encoding = 'utf-8'
-        if response.status_code == 200:
-            return response.json()
+        tokens: list[Token] = []
+        if int(limit) > 100:
+            end_cursor = None
+            has_next_page = True
+            for i in range(round(int(limit)/100)):
+                if not has_next_page:
+                    break
+                response = make_token_request(cookies, chain, 100, sort_by, parents, end_cursor)
+                if response.status_code == 200:
+                    info = response.json()
+                    end_cursor = info['data']['rankings']['pageInfo']['endCursor']
+                    has_next_page = info['data']['rankings']['pageInfo']['hasNextPage']
+                    tokens = tokens + info['data']['rankings']['edges']
+                else:
+                    raise Exception(response.status_code, response.json(), response.text)
         else:
-            raise Exception(response.status_code, response.json(), response.text)
+            response = make_token_request(cookies, chain, limit, sort_by, parents)
+            if response.status_code == 200:
+                tokens = tokens + response.json()['data']['rankings']['edges']
+            else:
+                raise Exception(response.status_code, response.json(), response.text)
+        return tokens
     except httpx.HTTPError as e:
         raise Exception(e)
     except Exception as e:

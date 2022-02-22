@@ -71,8 +71,15 @@ if __name__ == "__main__":
         raise Exception('Something wrong!')
 
     try:
-        with open('result.json', 'a') as file:
-            file.write(json.dumps(tokens))
+        try:
+            with open('result.json', 'r+') as file:
+                data = file.read()
+                file.seek(0)
+                file.write(json.dumps(tokens))
+                file.truncate()
+        except Exception as e:
+            with open('result.json', 'a') as file:
+                file.write(json.dumps(tokens))
     except Exception as e:
         log('Error save result.json', str(e))
     print('Completed!')
