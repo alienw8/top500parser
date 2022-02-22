@@ -4,7 +4,6 @@ from GraphQL import rankings_page_query, Chain, SortBy, Parents
 from Logger import log
 from Token import Token
 from ToJson import make_json
-import numpy as np
 import brotli  # NEED
 import Config
 
